@@ -1,0 +1,1 @@
+Algunas pruebas de char y reales de CORE no pasan porque hemos decidido no implementar los CASTEOS

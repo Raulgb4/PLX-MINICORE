@@ -1,0 +1,748 @@
+/*
+-----------------------------------------------------------------------------------------
+Nombre y apellidos: Raúl García Balongo
+Curso: 3ºB Ingeniería informática
+Objetivo del código: Código cup
+Estado del código: Revisado, documentado y funcionando.
+Fecha: 06/02/2025
+Versión: 4.0
+-----------------------------------------------------------------------------------------
+*/
+
+/*
+SECCIÓN IMPORTS:
+*/
+
+import java_cup.runtime.*;
+import java.text.ParseException;
+import java.util.List;
+import java.util.ArrayList;
+
+/*
+SECCIÓN PARSER CODE:
+*/
+
+parser code {:
+
+	// Normalmente, este procedimiento se deja vacío.
+	public void syntax_error(Symbol cur_token) { }
+
+    public void unrecovered_syntax_error(Symbol cur_token){
+
+        // Para mostrar mensajes de error en el código
+        System.err.println("\u001B[33m" + "ERROR (PLXC.cup): # Syntax error en línea " + PLXC.lex.getLine()+ ", columna "+
+                            PLXC.lex.getColumn() + " con el token " + sym.terminalNames[cur_token.sym] + "\u001B[0m");
+                            // Cuidado con el sym.terminalNames
+        PLXC.out.println("ERROR (PLXC.cup): # Syntax error, caracter inesperado: <" + cur_token.value + ">" +
+                                  " en la línea " + PLXC.lex.getLine() + " y la columna " + PLXC.lex.getColumn()
+                                   + " con el token " + sym.terminalNames[cur_token.sym]);
+        PLXC.out.println("    " + "error;") ;
+        PLXC.out.println("    " + "halt;") ;
+
+        // report_error("Syntax error", null);
+        // done_parsing();
+    }
+:}
+
+/*
+SECCIÓN ACTION CODE:
+*/
+
+action code {:
+    TablaSimbolos tabla  ; // Se inicializa la tabla de símbolos
+    Integer bloqueActual ; // Hace referencia al número de bloque actual
+    Integer numBloques   ; // Hace referencia al número de bloques totales
+:}
+
+/*
+SECCIÓN INIT WITH:
+*/
+
+init with {:
+    action_obj.tabla = new TablaSimbolos(); // Se crea la tabla de símbolos
+    action_obj.bloqueActual = 0 ;           // Se inicializa a 0 el número de bloque actual
+    action_obj.numBloques   = 0 ;           // Se inicializa a 0 el número de bloques totales
+:}
+
+/*
+SECCIÓN SÍMBOLOS TERMINALES:
+*/
+
+// Caracteres delimitadores:
+
+terminal ALL ;  // Apertura llave "{"
+terminal CLL ;  // Cierre llave "}"
+terminal AP  ;  // Apertura paréntesis "("
+terminal CP  ;  // Cierre paréntesis ")"
+
+// Otros caracteres delimitadores:
+
+terminal PYC  ; // Punto y Coma ";"
+terminal ASIG ; // Asignación "="
+terminal COMA ; // Coma ","
+
+// Operadores aritméticos:
+
+terminal MAS   ; // Operador suma  "+"
+terminal MENOS ; // Operador resta "-"
+terminal MULT  ; // Operador multiplicación  "*"
+terminal DIV   ; // Operador división "/"
+
+// Operadores relacionales:
+
+terminal IGUAL      ; // Operador "=="
+terminal DIST       ; // Operador "!="
+terminal MAYOR      ; // Operador ">"
+terminal MENOR      ; // Operador "<"
+terminal MAYORIGUAL ; // Operador ">="
+terminal MENORIGUAL ; // Operador "<="
+
+// Operadores lógicos (booleanos):
+
+terminal AND          ; // Operador "&&"
+terminal OR           ; // Operador "||"
+terminal NOT          ; // Operador "!"
+terminal IMPLICA      ; // Operador "-->"
+terminal DOBLEIMPLICA ; // Operador "<-->"
+
+// Operadores especiales:
+
+terminal MENOSUNARIO   ; // Operador menos unario "-" -> -4
+terminal MASMAS        ; // Operador unario post "x++"
+terminal MENOSMENOS    ; // Operador unario post "x--"
+terminal DESPIZQUIERDA ; // Operador binario "<<" (examen enero 2025)
+terminal DESPDERECHA   ; // Operador binario ">>" (examen enero 2025)
+terminal MODULO        ; // Operador binario "%"
+terminal MASIGUAL      ; // Operador binario "+="
+terminal MENOSIGUAL    ; // Operador binario "-="
+terminal MULTIGUAL     ; // Operador binario "*="
+terminal DIVIGUAL      ; // Operador binario "/="
+
+// Tipos predefinidos:
+
+terminal INT     ; // El tipo "int"
+terminal BOOLEAN ; // El tipo "boolean"
+terminal CHAR    ; // El tipo "char"
+terminal FLOAT   ; // El tipo "float" (reales)
+
+// Valores:
+
+terminal Integer ENTERO   ; // El valor de un número entero, "4"
+terminal Integer BOOLEANO ; // El valor de un booleano, true -> 1 , false -> 0
+terminal Integer CARACTER ; // El valor de un char, código UNICODE del caracter 65 -> 'A'
+terminal Float   REAL     ; // El valor de un float (real), "4.3"
+
+// Identificador de variable:
+
+terminal String IDENT ; // El identificador de una variable, "var1"
+
+// Estructuras de selección:
+
+terminal IF ;
+terminal ELSE ;
+terminal INTERROGANTE ; // "?" ,valor == 2 ? impares : pares += 1;
+terminal DP ; // ":" ,valor == 2 ? impares : pares += 1;
+terminal ELVIS ; // "?:", var variable = foo ?: bar Devuelve foo si foo existe y no es nulo sino devuelve bar
+
+// Estructuras de iteración (bucles):
+
+terminal DO     ; // Es el do del bucle do {} while()
+terminal WHILE  ; // Es el while del bucle while convencional o del do {} while()
+terminal FOR    ; // Es el for del bucle for convencional
+terminal REPEAT ; // Es el bucle repeat times examen enero 2025
+terminal TIMES  ; // Es el bucle repeat times examen enero 2025
+terminal JUST   ; // Es una modificación del repeat
+
+// Sentencias de salida por pantalla:
+
+terminal PRINT ; // El "print" convencional
+
+/*
+SECCIÓN SÍMBOLOS NO TERMINALES:
+*/
+
+non terminal Bloque listaSentencias               ;  // Axioma de la gramática
+non terminal Instruccion sentencia                ;  // int x ;
+non terminal Instruccion expresion                ;  // x = 6
+non terminal Tipo tipo                            ;  // int .No permite los tipos dinámicos
+non terminal Literal literal                      ;  // Se refiere a un "6" por ejemplo
+non terminal ListaVariables listaDeclarVariables  ;  // int x , y , z
+non terminal Integer inicioBloque                 ;  // {
+
+// Operadores:
+
+non terminal String operadorMultiplicativo ; // Multiplicación (*) y división (/)
+non terminal String operadorAditivo        ; // Suma (+) y resta (-)
+non terminal String operadorAsignacion     ; // Asignación (=)
+non terminal String operadorUnario         ; // Ej: -4, ++x, --x
+non terminal String operadorUnarioPost     ; // Ej: x-- , x++
+non terminal String operadorRelacional     ; // Ej: < , > , >= , == , != , <=
+non terminal String operadorDesplazamiento ; // Ej: 16 << 2
+
+// El operadorBooleano no se puede considerar porque tiene acciones distintas para
+// el AND, el OR y el NOT, no se puede englobar en un operador todo.
+
+// Bucle for:
+
+non terminal Instruccion inicioFor        ; // for (inicioFor ; .... ; .... )
+non terminal Instruccion condicionFor     ; // for (....  ; condicionFor ; .... )
+non terminal Instruccion actualizacionFor ; // for (....  ; .... ; actualizacionFor )
+
+/*
+SECCIÓN PRECEDENCIAS:
+
+- El terminal con mayor prioridad se escribe debajo del todo.
+- Los terminales con misma prioridad se escriben en la misma línea.
+- Los terminales que no se han escrito en esta sección, significan
+  que su precedencia es menor, es decir, es como si hubiera una línea
+- precedence right -> Asociatividad derecha: Ejemplo: caso de a=b=c,
+  hacer primero b=c y luego el resultado se asigna a "a"
+*/
+
+precedence nonassoc AP,CP ;
+precedence left ELSE ;
+precedence left COMA ;
+precedence right ASIG ;
+precedence right INTERROGANTE ;
+precedence right DP ;
+precedence right MASIGUAL, MENOSIGUAL, MULTIGUAL, DIVIGUAL ;
+precedence right IMPLICA, DOBLEIMPLICA ;
+precedence left OR ;
+precedence left AND ;
+precedence nonassoc NOT ;
+precedence left MAYOR, MAYORIGUAL, MENOR, MENORIGUAL, IGUAL, DIST ;
+precedence right ELVIS ;
+precedence left DESPIZQUIERDA, DESPDERECHA ;
+precedence left MAS, MENOS ;
+precedence left MULT, DIV ;
+precedence nonassoc MENOSUNARIO, MASMAS, MENOSMENOS ;
+
+/*
+SECCIÓN GRAMÁTICA:
+*/
+                    // int x ;
+listaSentencias ::= sentencia:s // CASO BASE
+                        {:
+                            // Se crea un nuevo bloque
+                            // Línea del código fuente para depuración de errores
+                            Bloque b = new Bloque (PLXC.lex.getLine()) ;
+                            // Se añade la instrucción al bloque
+                            b.addInstruccion(s) ;
+                            // Se devuelve el bloque con la instrucción añadida
+                            RESULT = b ;
+                        :}
+                  | listaSentencias:l sentencia:s // CASO RECURSIVO
+                        {:
+                            // Se añade la instrucción al bloque
+                            l.addInstruccion(s) ;
+                            // Se devuelve esa lista de sentencias (lista de bloques)
+                            RESULT = l ;
+                        :}
+                  ;
+               // int x              ;
+sentencia ::= listaDeclarVariables:l PYC
+                    {:
+                        // Devuelve la lista de variables declaradas
+                        RESULT = l ;
+                    :}
+            // x = x + 4 ;
+            | expresion:e PYC
+                    {:
+                        // Devuelve una expresión
+                        RESULT = e ;
+                    :}
+            // if ( 1 == 1 ) print(2) ;
+            | IF AP expresion:e CP sentencia:s
+                    {:
+                        //                           línea, condición, cuerpo del if y cuerpo del else (nulo)
+                        RESULT = new SentIF(PLXC.lex.getLine(),e,s,null) ;
+                    :}
+            // if ( 1 == 1 ) print(2) else print(4) ;
+            | IF AP expresion:e CP sentencia:s1 ELSE sentencia:s2
+                    {:
+                        //                           línea, condición, cuerpo del if y cuerpo del else
+                        RESULT = new SentIF(PLXC.lex.getLine(),e,s1,s2) ;
+                    :}
+            // for (int x = 0 ; x > 5 ; x++) x = y + 8 ;
+            | FOR inicioBloque:bloqueAnterior AP inicioFor:i PYC condicionFor:c PYC actualizacionFor:a CP sentencia:s
+                    {:
+                        tabla.eliminarBloque(bloqueActual) ;
+                        bloqueActual = bloqueAnterior ;
+                        // Línea del código fuente para depuración de errores
+                        //                       línea, inicio, condición, actualización y cuerpo del for
+                        RESULT = new SentFOR(PLXC.lex.getLine(),i,c,a,s);
+                    :}
+            // while (z > 5) x = x + 1 ;
+            | WHILE AP expresion:e CP sentencia:s
+                    {:
+                        // Línea del código fuente para depuración de errores
+                        //                       línea, condición y cuerpo del while
+                        RESULT = new SentWHILE(PLXC.lex.getLine(),e,s) ;
+                    :}
+            // do { x = x + 1 } while (z > 5) ;
+            | DO sentencia:s WHILE AP expresion:e CP PYC
+                    {:
+                        //                           línea, condición y cuerpo del while
+                        RESULT = new SentDOWHILE(PLXC.lex.getLine(),e,s) ;
+                    :}
+            // repeat print(1); 3 times ;
+            | REPEAT sentencia:s expresion:e TIMES PYC
+                    {:
+                        // Línea del código fuente para depuración de errores
+                        //                       línea, nºde veces y cuerpo del repeat
+                        RESULT = new SentREPEAT(PLXC.lex.getLine(),e,s) ;
+                    :}
+            // repeat (n) { print(n); } OTRO TIPO DE REPEAT
+            | REPEAT AP expresion:e CP sentencia:s
+                    {:
+                        // Línea del código fuente para depuración de errores
+                        //                       línea, nºde veces y cuerpo del repeat
+                        RESULT = new SentREPEAT(PLXC.lex.getLine(),e,s) ;
+                    :}
+            // repeat just print(1); 3 times ;
+            | REPEAT JUST sentencia:s expresion:e TIMES PYC
+                    {:
+                        // Línea del código fuente para depuración de errores
+                        //                       línea, nºde veces y cuerpo del repeat
+                        RESULT = new SentREPEATJUST(PLXC.lex.getLine(),e,s) ;
+                    :}
+            // print(x+5)    ;
+            | PRINT expresion:e PYC
+                    {:
+                        // La clase LlamadaMetodo sirve para generar el árbol de código.
+                        RESULT = new LlamadaMetodo
+                        (
+                            PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                            e, // x+5
+                            Metodos.MOSTRAR, // Metodo MOSTRAR implementado en cada Tipo en el switch
+                            null // Un print no tiene parámetros
+                        );
+                    :}
+            | ALL inicioBloque:bloqueAnterior listaSentencias:l CLL
+                    /*
+                        int x = 0 ;
+                        x = x + 1
+                        {
+                            int y = 5 ;
+                     -> }  // Cuando te encuentras este cierre de llave tienes que volver
+                           // al bloque anterior
+                        print(y) ;
+                    */
+                    {:
+                        // Elimino de la tabla de símbolos el bloque en el que estoy
+                        tabla.eliminarBloque(bloqueActual) ;
+                        // Vuelvo a apuntar al bloque en el que estaba antes
+                        bloqueActual = bloqueAnterior ;
+                        // Devuelvo la nueva lista de sentencias
+                        RESULT = l ;
+                    :}
+            | PYC
+            ;
+
+// for (int x = 0 ; .... ; .... )
+// for (inicioFor ; .... ; .... )
+inicioFor ::= listaDeclarVariables:l
+                    {:
+                        RESULT = l ;
+                    :}
+            | expresion:e
+                    {:
+                        RESULT = e ;
+                    :}
+            |
+            ;
+// for (.... ; x < 4 ; .... )
+// for (....  ; condicionFor ; .... )
+condicionFor ::= expresion:e
+                    {:
+                        RESULT = e ;
+                    :}
+               |
+               ;
+// for (....  ; .... ; x = x + 1 )
+// for (....  ; .... ; actualizacionFor )
+actualizacionFor ::= expresion:e
+                        {:
+                            RESULT = e ;
+                        :}
+                   |
+                   ;
+
+inicioBloque ::=
+                    /*
+                        int x = 0 ;
+                        x = x + 1
+                     -> { // Cuanto te encuentras esta flecha tienes que empezar un nuevo bloque
+                            int y = 5 ;
+                        }
+                        print(y) ;
+                    */
+                    {:
+                        // Devuelvo el bloque actual
+                        RESULT = bloqueActual ;
+                        // Añado un bloque más al contador de bloques totales
+                        numBloques++ ;
+                        // El bloque actual es el bloque nuevo creado
+                        bloqueActual = numBloques ;
+                    :}
+               ;
+                         // int    x
+listaDeclarVariables  ::= tipo:t IDENT:i
+                            {:
+                                Variable v ;
+                                // Se crea una nueva variable de tipo t en el bloque actual,
+                                // importante considerar el mutable a true
+                                v = new Variable(i,bloqueActual,true,t) ;
+
+                                // Se añade un nuevo objeto a la tabla de símbolos, en este caso
+                                // una variable con el metodo declararVariable
+                                tabla.declararVariable(PLXC.lex.getLine(),v) ;
+                                RESULT = new ListaVariables(PLXC.lex.getLine(),t) ;
+                            :}
+                          // int  x       =     4
+                        | tipo:t IDENT:i ASIG expresion:e
+                            {:
+                                Variable v ;
+                                // Se crea una nueva variable de tipo t en el bloque actual,
+                                // importante considerar el mutable a true
+                                v = new Variable(i,bloqueActual,true,t) ;
+
+                                // Se añade un nuevo objeto a la tabla de símbolos, en este caso
+                                // una variable con el método declararVariable
+                                tabla.declararVariable(PLXC.lex.getLine(),v) ;
+
+                                ListaVariables l = new ListaVariables(PLXC.lex.getLine(),t) ;
+                                l.addInstruccion(new LlamadaMetodo
+                                (
+                                    PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                                    new ExpresionVariable(PLXC.lex.getLine(),v),
+                                    Metodos.CREAR_VARIABLE, // Metodo CREAR_VARIABLE implementado en cada Tipo en el switch
+                                    new Instruccion[]{e}
+                                ));
+                                RESULT = l ;
+                            :}
+                          // int x , y , z , w , t , ....... -> RESOLVER CON RECURSIVIDAD
+                        | listaDeclarVariables:l COMA IDENT:i
+                            {:
+                                Variable v ;
+                                // Se crea una nueva variable de tipo t en el bloque actual,
+                                // importante considerar el mutable a true
+                                v = new Variable(i,bloqueActual,true,l.getTipo()) ;
+                                // Se añade un nuevo objeto a la tabla de símbolos, en este caso
+                                // una variable con el método declararVariable
+                                tabla.declararVariable(PLXC.lex.getLine(),v) ;
+                                RESULT = l;
+                            :}
+                          // int x = 4, y = 5 , z = 8 , w = 9 , ...... -> RESOLVER CON RECURSIVIDAD
+                        | listaDeclarVariables:l COMA IDENT:i ASIG expresion:e
+                            {:
+                                Variable v ;
+                                // Se crea una nueva variable de tipo t en el bloque actual,
+                                // importante considerar el mutable a true
+                                v = new Variable(i,bloqueActual,true,l.getTipo()) ;
+
+                                // Se añade un nuevo objeto a la tabla de símbolos, en este caso
+                                // una variable con el método declararVariable
+                                tabla.declararVariable(PLXC.lex.getLine(),v) ;
+                                l.addInstruccion(new LlamadaMetodo
+                                (
+                                    PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                                    new ExpresionVariable(PLXC.lex.getLine(),v),
+                                    Metodos.CREAR_VARIABLE, // Metodo CREAR_VARIABLE implementado en cada Tipo en el switch
+                                    new Instruccion[]{e}
+                                ));
+                                RESULT = l ;
+                            :}
+                        ;
+              // 4
+expresion ::= literal:l
+                {:
+                    // La clase ExpresionLiteral hace referencia a una instrucción que contiene
+                    // un literal
+                    RESULT = new ExpresionLiteral(PLXC.lex.getLine(),l) ;
+                :}
+             // x
+            | IDENT:i
+                {:
+                    // Busca si esa variable está definida
+                    Objeto o = tabla.buscarObjeto(i) ;
+                    // Si la variable no está definida debe lanzar un error:
+                    // int x = 8 ;
+                    // y = x ;
+                    // Error variable y no definida
+                    if (o == null) {
+                        throw new ParseException("ERROR (PLXC.cup): Variable( " + i
+                                                + ") no declarada", PLXC.lex.getLine()) ;
+                    }
+                    RESULT = new ExpresionVariable(PLXC.lex.getLine(), (Variable) o) ;
+                :}
+              // x     =     6
+            | IDENT:i operadorAsignacion:op expresion:e
+                {:
+                    // Busca si esa variable está definida
+                    Objeto o = tabla.buscarObjeto(i) ;
+                    // Si la variable no está definida debe lanzar un error:
+                    // int x = 8 ;
+                    // y = x ;
+                    // Error variable y no definida
+                    if (o == null) {
+                        throw new ParseException("ERROR (PLXC.cup): Variable( " + i
+                                                + ") no declarada", PLXC.lex.getLine()) ;
+                    }
+
+                    // La clase LlamadaMetodo sirve para generar el árbol de código.
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        new ExpresionVariable(PLXC.lex.getLine(), (Variable) o),
+                        op, // La operación que se va a realizar
+                        new Instruccion[]{e} // El valor que se está asignando
+                    ) ;
+                :} %prec ASIG
+                // x           +               (y+z)
+            | expresion:e1 operadorAditivo:op expresion:e2
+                {:
+                    // La clase LlamadaMetodo sirve para generar el árbol de código.
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        op, // La operación que se va a realizar
+                        new Instruccion[]{e2} // El segundo argumento de la operación
+                    ) ;
+                :} %prec MAS
+                // x           *               (y+z)
+            | expresion:e1 operadorMultiplicativo:op expresion:e2
+                {:
+                    // La clase LlamadaMetodo sirve para generar el árbol de código.
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        op, // La operación que se va a realizar
+                        new Instruccion[]{e2} // El segundo argumento de la operación
+                    ) ;
+                :} %prec MULT
+                //     1            ==              1
+            | expresion:e1 operadorRelacional:op expresion:e2
+                {:
+                    // La clase LlamadaMetodo sirve para generar el árbol de código.
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        op, // La operación que se va a realizar
+                        new Instruccion[]{e2} // El segundo argumento de la operación
+                    );
+                :} %prec IGUAL // ==
+                // (x==y)  &&  (4 != x)
+            | expresion:e1 AND expresion:e2
+                {:
+                    // La clase CortoCircuito es como la clase LlamadaMetodo
+                    // sirve para generar el árbol de código. Esto es lo típico de las condiciones
+                    // de un if por ejemplo cuando se hace un &&.
+                    RESULT = new CortoCircuito
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        Metodos.AND, // La operación que se va a realizar
+                        e2 // El segundo argumento de la operación
+                    );
+                :}
+                // (x==y)  ||  (4 != x)
+            | expresion:e1 OR expresion:e2
+                {:
+                    RESULT = new CortoCircuito
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        Metodos.OR, // La operación que se va a realizar
+                        e2 // El segundo argumento de la operación
+                    );
+                :}
+                // !  x
+            | NOT expresion:e
+                {:
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e, // El primer y único argumento de la operación
+                        Metodos.NOT, // La operación que se va a realizar
+                        null // El segundo argumento de la operación, evidentemente nulo
+                    );
+                :}
+                // false --> true
+            | expresion:e1 IMPLICA expresion:e2
+                {:
+                    //           EQUIVALENTE
+                    // !e1 || e2    ===     e1 --> e2
+                    // Estas dos expresiones equivalentes tienen la misma tabla de verdad
+                    // No hace falta implementar un nuevo operador booleano
+                    // Conseguimos implementar el operador de implicación a partir de
+                    // operaciones con AND, OR y NOT.
+                    // Esto es muy común en lógica proposicional.
+                    Instruccion i = new LlamadaMetodo(PLXC.lex.getLine(), e1, Metodos.NOT,null) ; // !e1
+                    RESULT = new CortoCircuito
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        i,
+                        Metodos.OR, // La operación que se va a realizar
+                        e2 // El segundo argumento de la operación
+                    ) ; // !e1 || e2    ===     e1 --> e2
+                :}
+                // false <--> true
+            | expresion:e1 DOBLEIMPLICA expresion:e2
+                {:
+                    //                            EQUIVALENTE
+                    // (e1 && e2) || (!e1 && !e2)     ===      e1 <--> e2
+                    // Estas dos expresiones equivalentes tienen la misma tabla de verdad
+                    // No hace falta implementar un nuevo operador booleano
+                    // Conseguimos implementar el operador de implicación doble a partir de
+                    // operaciones con AND, OR y NOT.
+                    // Esto es muy común en lógica proposicional.
+                    Instruccion i1 = new CortoCircuito(PLXC.lex.getLine(), e1, Metodos.AND,e2)       ; // e1 && e2
+                    Instruccion i2_1 = new LlamadaMetodo(PLXC.lex.getLine(), e1, Metodos.NOT,null)   ; // !e1
+                    Instruccion i2_2 = new LlamadaMetodo(PLXC.lex.getLine(), e2, Metodos.NOT,null)   ; // !e2
+
+                    Instruccion i2  = new CortoCircuito(PLXC.lex.getLine(), i2_1, Metodos.AND, i2_2) ; // !e1 && !e2
+
+                    RESULT = new CortoCircuito
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        i1,
+                        Metodos.OR, // La operación que se va a realizar
+                        i2 // El segundo argumento de la operación
+                    ) ; // (e1 && e2) || (!e1 && !e2)     ===      e1 <--> e2
+                :}
+                //    -           4
+            | operadorUnario:op expresion:e
+                {:
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e, // El primer y único argumento de la operación
+                        op, // La operación que se va a realizar
+                        null // Porque es unario, no tiene segundo argumento
+                    ) ;
+                :} %prec MENOSUNARIO
+                //    x           ++
+            | expresion:e operadorUnarioPost:op
+                {:
+                    RESULT = new CopiaYLlama
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e, // El primer y único argumento de la operación
+                        op, // La operación que se va a realizar
+                        null // Porque es unario, no tiene segundo argumento
+                    ) ;
+                :} %prec MASMAS
+                //     16            <<              2
+            | expresion:e1 operadorDesplazamiento:op expresion:e2
+                {:
+                    // La clase LlamadaMetodo sirve para generar el árbol de código.
+                    RESULT = new LlamadaMetodo
+                    (
+                        PLXC.lex.getLine(), // Línea del código fuente para depuración de errores
+                        e1, // El primer argumento de la operación
+                        op, // La operación que se va a realizar
+                        new Instruccion[]{e2} // El segundo argumento de la operación
+                    );
+                :} %prec DESPIZQUIERDA // <<
+                // valor == 2     ?       impares    :    pares += 1;
+            | expresion:e1 INTERROGANTE expresion:e2 DP expresion:e3
+                {:
+                    RESULT = new SentINTERROGANTE(PLXC.lex.getLine(),e1,e2,e3) ;
+                :}
+                //  foo      ?:     bar   Devuelve foo si foo existe y no es nulo sino devuelve bar
+            | expresion:e1 ELVIS expresion:e2
+                {:
+                    RESULT = new SentELVIS(PLXC.lex.getLine(),e1,e2) ;
+                :}
+                //  (    1+x      ) -> Devuelve 1+x , porque es equivalente
+            | AP expresion:e CP
+                {:
+                    RESULT = e ;
+                :}
+            ;
+
+operadorAditivo ::=        MAS        {: RESULT = Metodos.SUMA        ; :} // +
+                  |        MENOS      {: RESULT = Metodos.RESTA       ; :} // -
+                  ;
+
+operadorMultiplicativo ::= MULT       {: RESULT = Metodos.PRODUCTO    ; :} // *
+                         | DIV        {: RESULT = Metodos.DIVISION    ; :} // /
+                         | MODULO     {: RESULT = Metodos.MODULO      ; :} // %
+                         ;
+
+operadorRelacional ::=     IGUAL      {: RESULT = Metodos.IGUAL       ;:} // ==
+                     |     DIST       {: RESULT = Metodos.DISTINTO    ;:} // !=
+                     |     MAYOR      {: RESULT = Metodos.MAYOR       ;:} // >
+                     |     MENOR      {: RESULT = Metodos.MENOR       ;:} // <
+                     |     MAYORIGUAL {: RESULT = Metodos.MAYOR_IGUAL ;:} // >=
+                     |     MENORIGUAL {: RESULT = Metodos.MENOR_IGUAL ;:} // <=
+                     ;
+
+operadorAsignacion ::=     ASIG       {: RESULT = Metodos.ASIGNAR     ; :} // =
+                     |     MASIGUAL   {: RESULT = Metodos.MAS_IGUAL   ; :} // +=
+                     |     MENOSIGUAL {: RESULT = Metodos.MENOS_IGUAL ; :} // -=
+                     |     MULTIGUAL  {: RESULT = Metodos.MULT_IGUAL  ; :} // *=
+                     |     DIVIGUAL   {: RESULT = Metodos.DIV_IGUAL   ; :} // /=
+                     ;
+
+operadorUnario ::=         MENOS      {: RESULT = Metodos.OPUESTO     ; :} // Opuesto (menos unario) -3
+                 |         MASMAS     {: RESULT = Metodos.SIGUIENTE   ; :} // Valor siguiente ++x
+                 |         MENOSMENOS {: RESULT = Metodos.ANTERIOR    ; :} // Valor anterior  --x
+                 |         MAS        {: RESULT = Metodos.MAS_UNARIO  ; :} // +x  -> No afecta en el resultado
+                 ;
+
+operadorUnarioPost ::=     MASMAS     {: RESULT = Metodos.SIGUIENTE   ; :} // Valor siguiente x++
+                     |     MENOSMENOS {: RESULT = Metodos.ANTERIOR    ; :} // Valor anterior  x--
+                     ;
+
+operadorDesplazamiento ::= DESPIZQUIERDA {: RESULT = Metodos.DESP_IZQUIERDA ; :} // <<
+                         | DESPDERECHA   {: RESULT = Metodos.DESP_DERECHA   ; :} // >>
+                         ;
+
+tipo ::= INT
+            {:
+                // Devuelve objeto de tipo int, contactamos con la clase TipoInt
+                RESULT = TipoInt.instancia ;
+            :}
+       | BOOLEAN
+            {:
+                // Devuelve objeto de tipo boolean, contactamos con la clase TipoBool
+                RESULT = TipoBool.instancia ;
+            :}
+       | CHAR
+            {:
+                // Devuelve objeto de tipo char, contactamos con la clase TipoChar
+                RESULT = TipoChar.instancia ;
+            :}
+       | FLOAT
+            {:
+                // Devuelve objeto de tipo float, contactamos con la clase TipoFloat
+                RESULT = TipoFloat.instancia ;
+            :}
+       ;
+
+literal ::= ENTERO:e
+            {:
+               // Se crea un objeto, un literal de tipo entero
+               RESULT = new Literal(bloqueActual, TipoInt.instancia, e) ;
+            :}
+          | BOOLEANO:b
+            {:
+               // Se crea un objeto, un literal de tipo booleano
+               RESULT = new Literal(bloqueActual, TipoBool.instancia, b) ;
+            :}
+          | CARACTER:c
+            {:
+                // Se crea un objeto, un literal de tipo caracter
+                RESULT = new Literal(bloqueActual, TipoChar.instancia, c) ;
+            :}
+          | REAL:r
+            {:
+                // Se crea un objeto, un literal de tipo real
+                RESULT = new Literal(bloqueActual, TipoFloat.instancia, r) ;
+            :}
+          ;
