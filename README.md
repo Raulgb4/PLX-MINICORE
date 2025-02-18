@@ -10,14 +10,6 @@ obligatoria de variables y otras características adicionales.
 
 ---
 
-## Versión de la práctica
-
-Esta versión de la práctica ha sido realizada a partir del github
-de los compañeros de clase, que han conseguido implementar la práctica
-como explicó el profesor en clase.
-
----
-
 ## Estructura de la práctica
 
 El proyecto está compuesto por los siguientes archivos principales:
